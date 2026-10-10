@@ -1,0 +1,17 @@
+{
+  "name": "FloatingRealms",
+  "tree": {
+    "$className": "DataModel",
+    "Workspace": {
+      "$properties": { "StreamingEnabled": true, "StreamingMinRadius": 128, "StreamingTargetRadius": 384, "Gravity": 196.2, "FallenPartsDestroyHeight": -2000 }
+    },
+    "ReplicatedStorage": { "Shared": { "$path": "src/shared" } },
+    "ServerScriptService": { "Server": { "$path": "src/server" }, "Tests": { "$path": "tests" } },
+    "StarterPlayer": {
+      "$properties": { "CharacterWalkSpeed": 20, "CharacterJumpPower": 56, "CharacterUseJumpPower": true },
+      "StarterPlayerScripts": { "Client": { "$path": "src/client" } }
+    },
+    "Lighting": { "$properties": { "ClockTime": 14, "Brightness": 2, "Ambient": [0.36, 0.4, 0.5], "OutdoorAmbient": [0.53, 0.58, 0.68], "GlobalShadows": true, "Technology": "ShadowMap", "EnvironmentDiffuseScale": 0.55, "EnvironmentSpecularScale": 0.5, "ShadowSoftness": 0.3 } },
+    "SoundService": { "$properties": { "RespectFilteringEnabled": true } }
+  }
+}

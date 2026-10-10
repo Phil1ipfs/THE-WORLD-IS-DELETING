@@ -1,0 +1,8 @@
+.tools/
+build/
+node_modules/
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.log
+roblox.yml

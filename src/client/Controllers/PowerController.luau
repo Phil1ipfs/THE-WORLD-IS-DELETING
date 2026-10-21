@@ -33,6 +33,15 @@ function Power:updraft(payload)
 		root.AssemblyLinearVelocity = Vector3.new(v.X, math.min(payload.Lift, 110), v.Z)
 	end
 end
+-- Server-authorized dragon wing gust: pushback applied where the avatar is simulated.
+function Power:knockback(payload)
+	local character = Players.LocalPlayer.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and typeof(payload.Velocity) == "Vector3" and payload.Velocity.Magnitude < 140 then
+		self.DashUntil = 0
+		root.AssemblyLinearVelocity = payload.Velocity
+	end
+end
 function Power:update(data)
 	local character = Players.LocalPlayer.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")

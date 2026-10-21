@@ -260,23 +260,29 @@ test("Cloud sea, storm front and forked lightning build with the storm and respe
 	end
 	assert(env.StormState.Phase == "Clear" and env.FrontEmitter.Rate == 0)
 end)
-test("Repaired machinery and lift wheels spin locally around their hubs", function()
+test("Repaired machinery and Sky Balloon propellers spin locally around their hubs", function()
 	local region = regions.Grasslands
-	local wheel
+	local wheel, blade
 	for _, node in region.Model:GetDescendants() do
-		if node.Name == "LiftWheel" then
+		if node.Name == "PropellerHub" then
 			wheel = node
+		elseif node.Name == "PropellerBlade" then
+			blade = node
 		end
 	end
-	assert(wheel and wheel:GetAttribute("Spin"))
+	assert(wheel and wheel:GetAttribute("Spin") and blade, "Docked balloon propeller missing")
 	camera.CFrame = r.CFrame.new(region.Center + V.new(0, 20, 0))
 	env:update(0.3, snapshot)
-	local before = wheel.CFrame
+	local before, bladeBefore = wheel.CFrame, blade.CFrame
 	for _ = 1, 5 do
 		h:advance(0.1)
 		env:update(0.1, snapshot)
 	end
-	assert(wheel.CFrame.Position == before.Position and wheel.CFrame ~= before, "Lift wheel did not rotate")
+	assert(
+		wheel.CFrame.Position == before.Position and wheel.CFrame ~= before,
+		"Propeller hub did not rotate"
+	)
+	assert(blade.CFrame ~= bladeBefore, "Propeller blades did not follow the hub")
 end)
 local Effects = h.Load(client.Controllers.PowerEffects)
 local fx = Effects.new(settings)
@@ -395,7 +401,7 @@ test(
 				text ..= row.Text .. "\n"
 			end
 		end
-		assert(text:find("HAVENWOOD REACH", 1, true) and text:find("Repair the Ancient Windmill", 1, true))
+		assert(text:find("COLLAPSES IN", 1, true) and text:find("Repair the Ancient Windmill", 1, true))
 		assert(text:find("Hidden secret", 1, true) and text:find("80m", 1, true))
 		assert(text:find("Supply drop", 1, true) and text:find("Gale Anklet", 1, true))
 		ui.TrackerHeader.Activated:Fire()

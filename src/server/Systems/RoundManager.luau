@@ -63,6 +63,14 @@ function Round:update(dt)
 		self.State = "Waiting"
 	elseif self.State == "Intermission" and now >= self.Ends then
 		self.Number += 1
+		-- Balloon and dragon state reset BEFORE the world regenerates: World:reset attaches the
+		-- new regions (stations, dragon stages), which a later reset would wipe.
+		if self.Adventure and self.Adventure.reset then
+			self.Adventure:reset()
+		end
+		if self.Dragon then
+			self.Dragon:reset()
+		end
 		self.World:reset(Config.Seed + self.Number * 1709)
 		self.Wave:reset()
 		if self.Events then
@@ -83,6 +91,9 @@ function Round:update(dt)
 		if self.Objectives then
 			self.Objectives:tick(dt)
 		end
+		if self.Dragon then
+			self.Dragon:update(dt)
+		end
 		if self.Events then
 			self.Events:update(elapsed)
 		end
@@ -100,12 +111,18 @@ function Round:update(dt)
 		then
 			self.World:rebase(Config.RebaseAmount)
 			self.Players:rebase(Config.RebaseAmount)
+			if self.Dragon then
+				self.Dragon:rebase(Config.RebaseAmount)
+			end
 			self.Wave:update(0, elapsed, self.World.Origin, highest)
 			self.Effects:FireAllClients("Rebase", Config.RebaseAmount)
 		end
 		if #self.Players:active() == 0 then
 			if self.Events then
 				self.Events:reset()
+			end
+			if self.Dragon then
+				self.Dragon:reset()
 			end
 			self.State = "Waiting"
 			self.Effects:FireAllClients("RoundEnd")

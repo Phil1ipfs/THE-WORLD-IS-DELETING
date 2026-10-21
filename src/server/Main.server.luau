@@ -31,6 +31,8 @@ local cosmetics = require(script.Parent.Services.CosmeticService).new(data, rewa
 local adventure = require(script.Parent.Systems.AdventureService).new(world, players, effects, rewards)
 local objectives = require(script.Parent.Systems.ObjectiveService).new(world, players, effects, rewards, data)
 adventure.Objectives, objectives.Adventure = objectives, adventure
+local dragon = require(script.Parent.Systems.RealmDestroyer).new(world, players, effects, objectives, data)
+adventure.Dragon, round.Dragon = dragon, dragon
 local events = require(script.Parent.Systems.WorldEventDirector).new(world, players, wave, effects)
 round.Adventure, round.Events = adventure, events
 round.Objectives, objectives.Events, events.Objectives = objectives, events, objectives
@@ -185,6 +187,10 @@ request.OnServerEvent:Connect(function(player, action, payload)
 		adventure:use(record, payload)
 	elseif action == "UseGlyph" then
 		adventure:useGlyph(record, payload)
+	elseif action == "Fire" then
+		dragon:fire(record, payload)
+	elseif action == "Throw" then
+		dragon:throw(record, payload)
 	elseif action == "CoyoteJump" then
 		abilities:coyote(record)
 	elseif action == "Purchase" then
@@ -280,6 +286,8 @@ RunService.Heartbeat:Connect(function(dt)
 			EventPhase = events.Phase,
 			Sheltered = root and world:sheltered(root.Position) or false,
 			Transit = record.Transit or false,
+			Balloon = adventure.Balloon:status(record),
+			Dragon = dragon:status(record),
 			Health = player.Character
 					and player.Character:FindFirstChildOfClass("Humanoid")
 					and player.Character:FindFirstChildOfClass("Humanoid").Health
@@ -321,3 +329,9 @@ if RunService:IsStudio() then
 	end)
 end
 print("Floating Realms " .. Config.Version .. " initialized. Persistence: " .. tostring(data.Enabled))
+if require(script.Parent.Services.DragonArmory).preview() then
+	print(
+		"[Dragon Preview] Studio only: the first island is a Realm Destroyer battle about 20 s after you spawn."
+			.. " Uncheck Workspace attribute DragonPreview for the real realm progression."
+	)
+end

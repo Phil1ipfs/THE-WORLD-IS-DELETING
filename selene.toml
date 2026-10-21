@@ -2,3 +2,6 @@ std = "roblox"
 
 [lints]
 multiple_statements = "allow"
+# Figure specs deliberately combine positional fields (name, size, offset, color, material)
+# with named options (Mesh, Shape, Anim); see Activities/Animated.luau.
+mixed_table = "allow"

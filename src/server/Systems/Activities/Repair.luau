@@ -1,7 +1,7 @@
 --!nonstrict
 -- Cooperative machine repair. Shared contributions; finishing changes the realm:
 -- Windmill opens mill stores, Resonator overcharges everyone, Pump cools lava,
--- Beacon reveals hidden caches, generators fortify shelters (and speed the elevator).
+-- Beacon reveals hidden caches, generators fortify shelters (and speed the Sky Balloon).
 local Common = require(script.Parent.Common)
 local Props = require(script.Parent.Parent.Parent.Services.Props)
 local Repair = {}
@@ -244,7 +244,7 @@ function Repair.finish(svc, act)
 			region.ExpressLift = true
 		end
 		text = "Power restored: shelters are fortified against storm breaches and heal occupants"
-			.. (if id == "Generator" then "; the sky elevator runs express." else ".")
+			.. (if id == "Generator" then "; the Sky Balloon flies express." else ".")
 	end
 	svc:complete(act, text)
 	if id ~= "Windmill" then

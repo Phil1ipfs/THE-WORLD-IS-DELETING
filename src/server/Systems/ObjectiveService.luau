@@ -10,6 +10,7 @@ local Random = require(Shared.Random)
 local Activities = script.Parent.Activities
 local Common = require(Activities.Common)
 local Creatures = require(Activities.Creatures)
+local Ecology = require(Activities.Ecology)
 local G = require(script.Parent.Parent.Services.Geometry)
 local Service = {}
 Service.__index = Service
@@ -43,6 +44,7 @@ function Service:attach(region)
 	end
 end
 function Service:detach(region)
+	Ecology.cleanup(region)
 	for _, act in region.Activities or {} do
 		local m = module(act.Type)
 		if m and m.cleanup then
@@ -122,6 +124,23 @@ function Service:achieve(records, id)
 						"Achievement",
 						{ Id = id, Name = info.Name, Text = info.Text, Unlock = info.Unlock }
 					)
+				end
+			end
+		end
+	end
+end
+-- Persistent bestiary: records a defeated creature (stage 1) for every hitter (set of records).
+function Service:catalog(records, id)
+	if type(id) ~= "string" then
+		return
+	end
+	for record in records do
+		if type(record) == "table" and record.Player then
+			local profile = self:profile(record)
+			if profile then
+				profile.Bestiary = profile.Bestiary or {}
+				if not profile.Bestiary[id] then
+					profile.Bestiary[id] = 1
 				end
 			end
 		end
@@ -461,7 +480,8 @@ function Service:startEvent(region, name, now)
 		if not site then
 			return nil
 		end
-		event.Creature = Creatures.spawn(ctx, region.Design.Creature, site.X, site.Z, true)
+		local roster = require(Activities.Bestiary).Realms[region.Biome.Id] or {}
+		event.Creature = Creatures.spawn(ctx, roster.Rare or region.Design.Creature, site.X, site.Z, true)
 		event.Creature.Label.TextColor3 = C(255, 120, 120)
 		event.Until = now + 100
 		event.Text = Objectives.EventText.Boss
@@ -619,6 +639,7 @@ function Service:updateEvent(region, event, dt, now)
 			end
 			self:achieve(event.Creature.Hitters, "Bossbane")
 			self:achieve(event.Creature.Hitters, "Hunter")
+			self:catalog(event.Creature.Hitters, event.Creature.Kind)
 			event.Finished = true
 			for _, record in self:inRegion(region) do
 				self.Effects:FireClient(
@@ -857,6 +878,10 @@ function Service:tick(dt)
 					end
 				end
 			end
+			if not region.Ecology then
+				Ecology.populate(self, region, ctxFor(region), #self:inRegion(region))
+			end
+			Ecology.update(self, region, dt, now)
 			self:discover(region)
 			self:schedule(region, now)
 			local active = region.EventState and region.EventState.Active

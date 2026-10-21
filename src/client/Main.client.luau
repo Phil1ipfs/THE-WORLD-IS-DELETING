@@ -14,6 +14,27 @@ local interaction = require(script.Parent.Controllers.InteractionController).new
 local power = require(script.Parent.Controllers.PowerController).new()
 local fx = require(script.Parent.Controllers.PowerEffects).new(settings)
 environment.Effects = fx
+local dragon = require(script.Parent.Controllers.DragonController).new(settings, fx)
+-- Crossbow intent: the camera's aim direction only; the server validates and resolves the hit.
+ui.OnFire = function()
+	if ui.State == "Alive" and not ui.Panel.Visible and workspace.CurrentCamera then
+		request:FireServer("Fire", workspace.CurrentCamera.CFrame.LookVector)
+	end
+end
+ui.OnThrow = function()
+	if ui.State == "Alive" and not ui.Panel.Visible and workspace.CurrentCamera then
+		request:FireServer("Throw", workspace.CurrentCamera.CFrame.LookVector)
+	end
+end
+dragon.Audio = audio
+local shotCue = {
+	Crossbow = "DragonbaneShot",
+	Harpoon = "HarpoonThrow",
+	Ballista = "BallistaFire",
+	Cannon = "CannonFire",
+	Dash = "Hit",
+}
+local lastHurtCue = 0
 ui.OnInteract = function()
 	interaction:activate()
 end
@@ -97,6 +118,57 @@ effects.OnClientEvent:Connect(function(action, payload)
 			ui:flash(Color3.fromRGB(40, 140, 170), 0.45)
 			ui:notice("You fell into the ocean. The sea below the realms is fatal.")
 		end
+	elseif action == "Dragon" then
+		dragon:event(payload, environment.StormState)
+		ui:event(action, payload)
+		if payload.Kind == "Roar" or payload.Kind == "Meteors" then
+			-- Played at the listener: roars carry across the whole sky.
+			audio:play("DragonRoar")
+		elseif payload.Kind == "Impact" or payload.Kind == "Slam" or payload.Kind == "Strike" then
+			audio:play("DragonImpact", payload.Position)
+		elseif payload.Kind == "Gust" then
+			audio:play("DragonGust", payload.Position)
+		elseif payload.Kind == "Interrupted" then
+			audio:play("DragonHurt", payload.Position)
+		elseif payload.Kind == "Raze" then
+			audio:play("Earthquake")
+		elseif payload.Kind == "Repelled" then
+			audio:play("DragonRoar")
+			audio:play("Complete")
+		elseif payload.Kind == "Crossbow" or payload.Kind == "Harpoons" or payload.Kind == "Crafted" then
+			audio:play("ForgeCraft")
+		end
+	elseif action == "DragonShot" then
+		dragon:shot(payload)
+		audio:play(shotCue[payload.Weapon] or "DragonbaneShot", payload.From)
+		if (payload.Damage or 0) > 0 then
+			audio:play("WeakPointHit") -- Hit confirmation at the listener.
+			if os.clock() - lastHurtCue > 1.5 then
+				lastHurtCue = os.clock()
+				audio:play("DragonHurt", payload.To)
+			end
+		end
+	elseif action == "Shop" then
+		ui:event(action, payload)
+		audio:play(if payload.Kind == "Bought" then "Chest" else "Tick")
+	elseif action == "DragonTrophy" or action == "Bestiary" then
+		ui:event(action, payload)
+		audio:play("Complete")
+	elseif action == "Knockback" then
+		power:knockback(payload)
+	elseif action == "Balloon" then
+		if payload.Phase == "Boarded" then
+			audio:play("Tick")
+		elseif payload.Phase == "Depart" then
+			audio:play("BalloonDepart")
+			audio:play("BalloonBurner")
+		elseif payload.Phase == "Arrive" then
+			audio:play("BalloonArrive")
+		end
+	elseif action == "Dialogue" then
+		ui:dialogue(payload)
+	elseif action == "Bleat" then
+		audio:play("SheepBleat", payload.Position)
 	elseif action == "Emote" then
 		environment:emote(payload)
 	elseif action == "Ability" then
@@ -152,6 +224,7 @@ RunService:BindToRenderStep("RealmCamera", Enum.RenderPriority.Camera.Value + 1,
 	local name = camera:update(math.min(dt, 0.1), data, environment.StormState)
 	power:update(data)
 	fx:update(dt, data)
+	dragon:update(math.min(dt, 0.1))
 	ui:animate(dt)
 	if name then
 		ui.SpectatorName.Text = "Spectating • " .. name

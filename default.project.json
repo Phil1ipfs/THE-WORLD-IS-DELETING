@@ -3,7 +3,8 @@
   "tree": {
     "$className": "DataModel",
     "Workspace": {
-      "$properties": { "StreamingEnabled": true, "StreamingMinRadius": 128, "StreamingTargetRadius": 384, "Gravity": 196.2, "FallenPartsDestroyHeight": -2000 }
+      "$properties": { "StreamingEnabled": true, "StreamingMinRadius": 128, "StreamingTargetRadius": 384, "Gravity": 196.2, "FallenPartsDestroyHeight": -2000 },
+      "$attributes": { "DragonPreview": true }
     },
     "ReplicatedStorage": { "Shared": { "$path": "src/shared" } },
     "ServerScriptService": { "Server": { "$path": "src/server" }, "Tests": { "$path": "tests" } },

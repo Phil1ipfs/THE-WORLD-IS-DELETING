@@ -58,7 +58,7 @@ test("Large deterministic regions contain a village, cave, grove and three ascen
 	local region = w.Islands[0]
 	assert(#region.Cells > 90 and #region.Interactions > 35)
 	assert(#region.Shelters >= 4 and #region.Routes.Ascent > 15)
-	for _, kind in { "Lift", "Portal", "Repair", "Glyph", "Heal", "Discover", "Timber", "Crystal", "Herb" } do
+	for _, kind in { "Balloon", "Portal", "Repair", "Glyph", "Heal", "Discover", "Timber", "Crystal", "Herb" } do
 		assert(find(region, kind))
 	end
 	for index = 0, 100 do
@@ -214,17 +214,21 @@ test("Emergency crystals, healing and discovery have bounded server-owned effect
 	assert(not a:interact(rec, region, shrine))
 	dispose(w, p, a, rec)
 end)
-test("Elevator moves a real deck, survives rebasing and releases riders at arrival or death", function()
+test("Sky Balloon flies a real gondola, survives rebasing and releases riders at arrival or death", function()
 	local w, p, a, rec = system()
-	local lift = find(w.Islands[0], "Lift")
-	move(rec, lift)
+	local dock = find(w.Islands[0], "Balloon")
+	move(rec, dock)
 	assert(
-		a:interact(rec, w.Islands[0], lift) and rec.Transit and rec.Player.Character.HumanoidRootPart.Anchored
+		a:interact(rec, w.Islands[0], dock) and rec.Transit and rec.Player.Character.HumanoidRootPart.Anchored
 	)
-	local deck = a.Trips[rec].Deck
+	local station = a.Balloon.Stations[w.Islands[0]]
+	local gondola = station.Built.Model.PrimaryPart
+	h:advance(5.05)
+	a:update()
+	assert(station.State == "Flight", "Balloon did not depart after its 5 s countdown")
 	h:advance(7)
 	a:update()
-	assert(deck.Parent and deck.Position.Y > Config.StartY + 50)
+	assert(gondola.Parent and gondola.Position.Y > Config.StartY + 50)
 	w:rebase(1024)
 	p:rebase(1024)
 	h:advance(7.1)
@@ -235,10 +239,10 @@ test("Elevator moves a real deck, survives rebasing and releases riders at arriv
 			and rec.Region == 1
 			and rec.Peak == 128
 	)
-	assert(not deck.Parent)
-	local nextLift = find(w.Islands[1], "Lift")
-	move(rec, nextLift)
-	assert(a:interact(rec, w.Islands[1], nextLift))
+	assert(not gondola.Parent, "The arrived balloon should leave for its turnaround")
+	local nextDock = find(w.Islands[1], "Balloon")
+	move(rec, nextDock)
+	assert(a:interact(rec, w.Islands[1], nextDock))
 	p:eliminate(rec, "test")
 	a:update()
 	assert(not rec.Transit and not rec.Player.Character.HumanoidRootPart.Anchored)

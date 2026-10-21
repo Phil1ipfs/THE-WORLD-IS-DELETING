@@ -206,7 +206,7 @@ test(
 	"Survivor rescue: free, escort across intact ground, deliver, and fail when ground is deleted",
 	function()
 		local s = setup()
-		local region = realm(s, 0)
+		local region = realm(s, 13) -- Ruins survivor (Havenwood now runs the Lost Shepherd flock quest)
 		local act = activity(region, "Rescue")
 		assert(act.State == "Trapped" or act.State == "Waiting")
 		assert(use(s, region, act.Spec))
@@ -235,7 +235,7 @@ test(
 		cleanup(s)
 		-- Failure path: the survivor's ground is deleted.
 		s = setup()
-		region = realm(s, 0)
+		region = realm(s, 13)
 		act = activity(region, "Rescue")
 		local entry = region.Sites:at(act.Local.X, act.Local.Z)
 		entry.Cell.Part.CanCollide = false

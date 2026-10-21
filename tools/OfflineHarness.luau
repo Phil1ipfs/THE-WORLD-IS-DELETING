@@ -222,6 +222,8 @@ function Harness.new()
 	local game = self.Game
 	game.JobId = "offline-fixture"
 	self.Workspace = game:GetService("Workspace")
+	-- Specs exercise the real realm progression; the Studio-only Dragon Preview stays off.
+	self.Workspace:SetAttribute("DragonPreview", false)
 	-- Roblox provides this singleton automatically; Rojo/Lune's bare XML omits it.
 	if not self.Workspace:FindFirstChildOfClass("Terrain") then
 		local terrain = roblox.Instance.new("Terrain")

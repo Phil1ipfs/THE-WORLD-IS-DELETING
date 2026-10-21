@@ -75,6 +75,13 @@ assert(latest[777] and latest[777].State == "Alive" and latest[777].Profile.Atte
 -- The real snapshot path carries the realm objective tracker.
 assert(latest[777].Objectives and #latest[777].Objectives.Activities >= 3, "Snapshot lacks realm objectives")
 assert(latest[777].Objectives.Region == "Havenwood Reach")
+-- Round start must leave the regions registered with the dragon (omen silhouette in realm 1).
+local dragonState = h.Game:GetService("ReplicatedStorage"):FindFirstChild("RealmDestroyer")
+assert(
+	dragonState and dragonState:GetAttribute("Visible"),
+	"Realm Destroyer omen is not flying during a round"
+)
+assert(dragonState:GetAttribute("Mode") == "Ambient", "Realm 1 must only show the distant omen")
 local root = player.Character.HumanoidRootPart
 local region = h.Workspace.FloatingRealms.Region_0
 local function walkNear(node)
@@ -104,23 +111,25 @@ for i, glyph in { "Sun", "Leaf", "Moon" } do
 	assert(latest[777].Seal.Progress == i, "UseGlyph remote failed to operate the altar")
 end
 assert(latest[777].Seal.Open and latest[777].PortalOpen)
-local lift = region:FindFirstChild("Lift")
+local dock = region:FindFirstChild("Balloon")
 local from = root.Position
-local destination = lift.Position + r.Vector3.new(0, 1.5, 0)
+local destination = dock.Position + r.Vector3.new(0, 1.5, 0)
 for i = 1, 20 do
 	root.Position = from:Lerp(destination, i / 20)
 	h:advance(0.2)
 	heartbeat:Fire(0.2)
 end
-lift.ProximityPrompt.Triggered:Fire(player)
+dock.ProximityPrompt.Triggered:Fire(player)
 h:advance(0.5)
 heartbeat:Fire(0.5)
-assert(latest[777].Transit, "Main-loop elevator interaction failed")
-for _ = 1, 145 do
+assert(latest[777].Transit and latest[777].Balloon, "Main-loop balloon boarding failed")
+assert(latest[777].Balloon.Phase == "Boarding" and latest[777].Balloon.Departs <= 5)
+for _ = 1, 205 do
 	h:advance(0.1)
 	heartbeat:Fire(0.1)
 end
-assert(latest[777].Verified >= 128 and not latest[777].Transit, "Main-loop elevator progression failed")
+assert(latest[777].Verified >= 128 and not latest[777].Transit, "Main-loop balloon progression failed")
+assert(latest[777].Dragon and latest[777].Dragon.Mode, "Snapshot lacks the dragon view")
 network.Request.OnServerEvent:Fire(player, "Lobby")
 h:advance(0.5)
 heartbeat:Fire(0.5)
@@ -128,5 +137,5 @@ assert(player:GetAttribute("State") == "Lobby" and latest[777].Profile.Best >= 1
 assert(closeHandler)
 closeHandler()
 print(
-	"PASS actual server entrypoint: queue, spawn, key collection/use remotes, seal snapshots, elevator ascent, return, rewards and shutdown (offline fixture)"
+	"PASS actual server entrypoint: queue, spawn, key collection/use remotes, seal snapshots, Sky Balloon ascent, return, rewards and shutdown (offline fixture)"
 )

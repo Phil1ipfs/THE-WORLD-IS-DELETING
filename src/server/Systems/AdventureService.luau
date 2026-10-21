@@ -1,7 +1,6 @@
 --!nonstrict
 -- All inventory, costs, prompt distances and authorized travel are server-owned.
 local Adventure = {}
-local G = require(script.Parent.Parent.Services.Geometry)
 local Items = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").ItemConfig)
 local Seal = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").SealConfig)
 local Ground = require(script.Parent.Parent.Services.GroundProbe)
@@ -9,9 +8,10 @@ Adventure.__index = Adventure
 local caps = { Timber = Items.Timber.Cap, Crystal = Items.Crystal.Cap, Herb = Items.Herb.Cap }
 function Adventure.new(world, players, effects, rewards)
 	local self = setmetatable(
-		{ World = world, Players = players, Effects = effects, Rewards = rewards, Trips = {}, Specs = {} },
+		{ World = world, Players = players, Effects = effects, Rewards = rewards, Specs = {} },
 		Adventure
 	)
+	self.Balloon = require(script.Parent.SkyBalloon).new(world, players, effects)
 	world.OnRegionAdded = function(region)
 		self:attach(region)
 	end
@@ -27,10 +27,9 @@ function Adventure.new(world, players, effects, rewards)
 		if self.Objectives then
 			self.Objectives:detach(region)
 		end
-		for record, trip in self.Trips do
-			if trip.From == region.Index or trip.From + 1 == region.Index then
-				self:cancel(record)
-			end
+		self.Balloon:detach(region)
+		if self.Dragon then
+			self.Dragon:detach(region)
 		end
 	end
 	return self
@@ -49,6 +48,9 @@ function Adventure:attach(region)
 	if self.Objectives then
 		self.Objectives:attach(region)
 	end
+	if self.Dragon then
+		self.Dragon:attach(region)
+	end
 end
 -- Registers one interaction (also used for prompts created after generation: events, breaches).
 function Adventure:register(region, spec)
@@ -62,6 +64,9 @@ function Adventure:register(region, spec)
 	spec.Claims = {}
 	spec.Id = spec.Part:GetAttribute("InteractionId")
 	self.Specs[spec.Id] = { Region = region, Spec = spec }
+	if spec.Kind == "Balloon" then
+		self.Balloon:attach(region, spec)
+	end
 	table.insert(
 		region.Connections,
 		spec.Prompt.Triggered:Connect(function(player)
@@ -157,6 +162,12 @@ function Adventure:interact(record, region, spec, selectedGlyph)
 	if spec.Activity or spec.Event or spec.Breach then
 		return self.Objectives ~= nil and self.Objectives:interact(record, region, spec)
 	end
+	if kind == "Balloon" then
+		return self.Balloon:interact(record, region, spec)
+	elseif spec.Dragonbane then
+		-- Forge, ballista and crystal cannon: Dragonbane equipment owned by the dragon system.
+		return self.Dragon ~= nil and self.Dragon:interact(record, region, spec)
+	end
 	if caps[kind] then
 		local cap = caps[kind] + (if record.Perks and record.Perks.Pack then 3 else 0)
 		if spec.Claims[record.Player.UserId] then
@@ -191,7 +202,7 @@ function Adventure:interact(record, region, spec, selectedGlyph)
 			then
 				self:notice(
 					record,
-					"The shortcut is corrupted. Use the sky causeway, elevator, or cave gate."
+					"The shortcut is corrupted. Use the sky causeway, Sky Balloon, or cave gate."
 				)
 				return false
 			end
@@ -287,23 +298,6 @@ function Adventure:interact(record, region, spec, selectedGlyph)
 			return true
 		end
 		return self.Players:transfer(record, region.Index + 1)
-	elseif kind == "Lift" then
-		if not self.World.Islands[region.Index + 1] then
-			return false
-		end
-		record.Transit = true
-		root.Anchored = true
-		local deck = G.part(
-			region.Model,
-			"SkyElevatorDeck",
-			Vector3.new(10, 1, 10),
-			CFrame.new(root.Position - Vector3.new(0, 3.5, 0)),
-			Color3.fromRGB(122, 99, 69),
-			Enum.Material.WoodPlanks
-		)
-		self.Trips[record] =
-			{ From = region.Index, Started = now, Offset = root.Position - region.Center, Deck = deck }
-		self:notice(record, "Sky elevator departing. Stay aboard until arrival.")
 	elseif kind == "Heal" then
 		if bag.Herb < 1 or not hum or hum.Health >= hum.MaxHealth then
 			return false
@@ -324,7 +318,7 @@ function Adventure:interact(record, region, spec, selectedGlyph)
 		if self.Rewards then
 			self.Rewards:bonus(record, 15)
 		end
-		self:notice(record, "Forgotten shrine found. The cave seal and elevator offer other escapes.")
+		self:notice(record, "Forgotten shrine found. The cave seal and Sky Balloon offer other escapes.")
 	end
 	self.Effects:FireClient(record.Player, "Discovery", { Kind = kind, Position = spec.Part.Position })
 	return true
@@ -397,37 +391,19 @@ function Adventure:use(record, kind)
 	})
 	return true
 end
+-- Releases a rider from any balloon (death, leaving, sanctuary). Never grants progression.
 function Adventure:cancel(record)
-	local trip = self.Trips[record]
-	if trip and trip.Deck.Parent then
-		trip.Deck:Destroy()
-	end
+	self.Balloon:release(record)
 	local root = record.Player.Character and record.Player.Character:FindFirstChild("HumanoidRootPart")
 	if root then
 		root.Anchored = false
 	end
 	record.Transit = nil
-	self.Trips[record] = nil
 end
 function Adventure:update()
-	for record, trip in self.Trips do
-		local root = record.Player.Character and record.Player.Character:FindFirstChild("HumanoidRootPart")
-		local source = self.World.Islands[trip.From]
-		local target = self.World.Islands[trip.From + 1]
-		if record.State ~= "Alive" or not root or not source or not target then
-			self:cancel(record)
-			continue
-		end
-		local t = math.clamp((os.clock() - trip.Started) / (if source.ExpressLift then 8 else 14), 0, 1)
-		local a = source.Center + trip.Offset
-		local b = self.World:point(trip.From + 1) + Vector3.new(0, 4, 0)
-		root.CFrame = CFrame.new(a:Lerp(b, t) + Vector3.new(0, math.sin(t * math.pi) * 32, 0))
-		trip.Deck.CFrame = root.CFrame * CFrame.new(0, -3.5, 0)
-		record.LastPosition, record.LastCheck = root.Position, os.clock()
-		if t >= 1 then
-			self:cancel(record)
-			self.Players:transfer(record, trip.From + 1)
-		end
-	end
+	self.Balloon:update()
+end
+function Adventure:reset()
+	self.Balloon:reset()
 end
 return Adventure

@@ -11,6 +11,7 @@ Rules.AchievementIds = {
 	"Daredevil",
 	"Engineer",
 	"Completionist",
+	"Dragonbane",
 }
 local transitions: { [string]: { [string]: boolean } } = {
 	Lobby = { Queued = true },
@@ -68,7 +69,25 @@ function Rules.profile(raw: any)
 	raw = if type(raw) == "table" then raw else {}
 	local owned: { [string]: boolean } = { none = true }
 	if type(raw.Owned) == "table" then
-		for _, id in { "azure", "ember", "aura", "wave", "royal", "halo", "stormtrail", "mantle" } do
+		for _, id in
+			{
+				"azure",
+				"sunrise",
+				"ember",
+				"frostfire",
+				"aura",
+				"sparks",
+				"voidshimmer",
+				"wave",
+				"royal",
+				"golden",
+				"galewings",
+				"halo",
+				"stormtrail",
+				"mantle",
+				"dragonwing",
+			}
+		do
 			if raw.Owned[id] == true then
 				owned[id] = true
 			end
@@ -79,6 +98,27 @@ function Rules.profile(raw: any)
 		for _, id in Rules.AchievementIds do
 			if raw.Achievements[id] == true then
 				achievements[id] = true
+			end
+		end
+	end
+	-- Bestiary discovery: creature id -> stage (1-4); bounded so a tampered table cannot grow.
+	local bestiary: { [string]: number } = {}
+	if type(raw.Bestiary) == "table" then
+		local count = 0
+		for id, stage in raw.Bestiary do
+			if
+				count < 64
+				and type(id) == "string"
+				and #id <= 32
+				and string.match(id, "^%u%a*$") ~= nil
+				and type(stage) == "number"
+				and stage == stage
+			then
+				local value = math.clamp(math.floor(stage), 0, 4)
+				if value > 0 then
+					bestiary[id] = value
+					count += 1
+				end
 			end
 		end
 	end
@@ -93,6 +133,12 @@ function Rules.profile(raw: any)
 		Achievements = achievements,
 		Relics = safe(raw.Relics),
 		Rescues = safe(raw.Rescues),
+		DragonScales = safe(raw.DragonScales),
+		Emberhearts = safe(raw.Emberhearts),
+		DragonKills = safe(raw.DragonKills),
+		DragonAt = safe(raw.DragonAt),
+		DragonRolls = safe(raw.DragonRolls),
+		Bestiary = bestiary,
 		Equipped = if type(raw.Equipped) == "string" and owned[raw.Equipped] then raw.Equipped else "none",
 	}
 end

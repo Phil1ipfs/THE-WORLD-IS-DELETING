@@ -4,13 +4,13 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
-local Shop = require(Shared.ShopConfig)
 local Config = require(Shared.GameConfig)
 local Biomes = require(Shared.BiomeConfig)
 local Items = require(Shared.ItemConfig)
 local Seal = require(Shared.SealConfig)
 local Realms = require(Shared.RealmConfig)
-local Objectives = require(Shared.ObjectiveConfig)
+local DragonHud = require(script.Parent.DragonHud)
+local ShopView = require(script.Parent.ShopView)
 local UI = {}
 UI.__index = UI
 local palette = {
@@ -88,6 +88,8 @@ local function button(parent, value, position, size, callback, primary)
 	end)
 	return b
 end
+-- Shared widget kit for companion HUD modules (DragonHud).
+UI.Kit = { Make = make, Text = text, Button = button, Palette = palette }
 function UI.new(request, settings)
 	local self = setmetatable({
 		Request = request,
@@ -228,6 +230,7 @@ function UI.new(request, settings)
 		{ "Settings", "Settings", "⚙", "Audio, camera, detail" },
 		{ "Cosmetic Shop", "Shop", "💎", "Trails, auras & unlocks" },
 		{ "Leaderboards", "Leaderboard", "🏆", "Highest ascenders" },
+		{ "Bestiary", "Bestiary", "🐉", "Realm Destroyer & creatures" },
 	}
 	self.MenuCards = {}
 	for i, item in items do
@@ -235,8 +238,8 @@ function UI.new(request, settings)
 		local card = button(
 			self.MenuContent,
 			"",
-			UDim2.fromOffset(column * 226, 336 + rowIndex * 84),
-			UDim2.fromOffset(214, 74),
+			UDim2.fromOffset(column * 226, 336 + rowIndex * 58),
+			UDim2.fromOffset(214, 52),
 			function()
 				self:open(item[2])
 				if item[2] == "Leaderboard" then
@@ -252,9 +255,9 @@ function UI.new(request, settings)
 		}, card)
 		local icon = text(card, item[3], 24, UDim2.fromOffset(14, 0), UDim2.new(0, 30, 1, 0), palette.Gold)
 		icon.Font, icon.TextXAlignment = Enum.Font.GothamBlack, Enum.TextXAlignment.Center
-		local title = text(card, item[1], 16, UDim2.fromOffset(52, 14), UDim2.new(1, -60, 0, 22))
+		local title = text(card, item[1], 16, UDim2.fromOffset(52, 6), UDim2.new(1, -60, 0, 22))
 		title.Font = Enum.Font.GothamBold
-		text(card, item[4], 12, UDim2.fromOffset(52, 38), UDim2.new(1, -60, 0, 18), palette.Muted)
+		text(card, item[4], 12, UDim2.fromOffset(52, 28), UDim2.new(1, -60, 0, 18), palette.Muted)
 		self.MenuCards[item[2]] = card
 	end
 	self.StatusDot = make("Frame", {
@@ -380,44 +383,89 @@ function UI.new(request, settings)
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		CanvasSize = UDim2.new(),
 	}, self.Panel)
+	-- Floating HUD (right side, below the Roblox player list): no container panel; every
+	-- element is text with strokes or a compact bar, laid out on a transparent frame.
 	self.Hud = make("Frame", {
 		Visible = false,
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 10),
-		Size = UDim2.new(0.94, 0, 0, 110),
-		BackgroundColor3 = palette.Ink,
-		BackgroundTransparency = 0.12,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -18, 0.3, 0),
+		Size = UDim2.fromOffset(250, 214),
+		BackgroundTransparency = 1,
 	}, self.Gui)
-	make("UISizeConstraint", { MaxSize = Vector2.new(720, 110) }, self.Hud)
-	decorate(self.Hud)
-	self.Altitude =
-		text(self.Hud, "0m", 30, UDim2.fromOffset(18, 10), UDim2.new(0.45, 0, 0, 40), palette.Gold)
-	self.Best =
-		text(self.Hud, "BEST 0m", 12, UDim2.fromOffset(20, 53), UDim2.new(0.45, 0, 0, 20), palette.Muted)
-	self.Biome = text(
-		self.Hud,
-		"Sky Grasslands",
-		14,
-		UDim2.new(0.49, 0, 0, 16),
-		UDim2.new(0.49, -12, 0, 23),
-		palette.Blue
-	)
-	self.Biome.TextWrapped = true
-	self.Biome.TextSize = 12
-	self.Biome.Size = UDim2.new(0.49, -12, 0, 32)
-	self.Time = text(
-		self.Hud,
-		"0:00 • 0 coins",
-		12,
-		UDim2.new(0.49, 0, 0, 49),
-		UDim2.new(0.49, -12, 0, 20),
-		palette.Muted
-	)
-	self.Distance =
-		text(self.Hud, "DELETION 120m BELOW", 12, UDim2.fromOffset(20, 80), UDim2.new(1, -40, 0, 20))
+	self.HudScale = make("UIScale", { Scale = 1 }, self.Hud)
+	local function hudText(value, size, y, height, color, font, align)
+		local label = text(self.Hud, value, size, UDim2.fromOffset(0, y), UDim2.new(1, 0, 0, height), color)
+		label.Font = font or Enum.Font.GothamBold
+		label.TextXAlignment = align or Enum.TextXAlignment.Right
+		label.TextStrokeTransparency, label.TextStrokeColor3 = 0.35, Color3.fromRGB(8, 10, 20)
+		return label
+	end
+	self.Biome = hudText("HAVENWOOD REACH", 13, 0, 18, palette.Blue, Enum.Font.GothamBlack)
+	self.Biome.TextTruncate = Enum.TextTruncate.AtEnd
+	self.Altitude = hudText("0m ALTITUDE", 22, 17, 28, palette.Gold, Enum.Font.GothamBlack)
+	-- Retired readouts kept hidden (developer diagnostics only).
+	self.Best = hudText("", 11, 0, 1, palette.Muted)
+	self.Best.Visible = false
+	self.Time = hudText("", 11, 0, 1, palette.Muted)
+	self.Time.Visible = false
+	local function barLabel(caption, y)
+		return hudText(caption, 11, y, 16, palette.Muted, Enum.Font.GothamBlack, Enum.TextXAlignment.Left)
+	end
+	local function bar(y)
+		local track = make("Frame", {
+			Position = UDim2.fromOffset(0, y),
+			Size = UDim2.new(1, 0, 0, 24),
+			BackgroundColor3 = Color3.fromRGB(10, 12, 22),
+			BackgroundTransparency = 0.45,
+			BorderSizePixel = 0,
+		}, self.Hud)
+		make("UICorner", { CornerRadius = UDim.new(1, 0) }, track)
+		make("UIStroke", { Color = Color3.fromRGB(255, 255, 255), Transparency = 0.82, Thickness = 1 }, track)
+		local fill = make("Frame", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Color3.fromRGB(80, 230, 100),
+			BorderSizePixel = 0,
+		}, track)
+		make("UICorner", { CornerRadius = UDim.new(1, 0) }, fill)
+		make("UIGradient", {
+			Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(205, 205, 205)),
+			Rotation = 90,
+		}, fill)
+		return track, fill
+	end
+	barLabel("HEALTH", 50)
+	self.Health = hudText("100/100", 13, 49, 17, palette.Text, Enum.Font.GothamBlack)
+	self.HealthBar, self.HealthFill = bar(68)
+	self.ShieldFill = make("Frame", {
+		Size = UDim2.fromScale(0, 0.35),
+		Position = UDim2.fromScale(0, 0.65),
+		BackgroundColor3 = Color3.fromRGB(130, 220, 255),
+		BorderSizePixel = 0,
+	}, self.HealthBar)
+	make("UICorner", { CornerRadius = UDim.new(1, 0) }, self.ShieldFill)
+	barLabel("DELETION", 100)
+	self.Distance = hudText("120m BELOW", 13, 99, 17, palette.Text, Enum.Font.GothamBlack)
+	self.DeletionBar, self.DeletionFill = bar(118)
+	self.DeletionFill.BackgroundColor3 = Color3.fromRGB(60, 220, 255)
+	-- Current primary objective (optional activities live in the collapsible tracker below).
+	self.ObjectiveIcon = make("Frame", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -2, 0, 160),
+		Size = UDim2.fromOffset(8, 8),
+		Rotation = 45,
+		BackgroundColor3 = palette.Gold,
+		BorderSizePixel = 0,
+	}, self.Hud)
+	self.ObjectiveCaption = hudText("CURRENT OBJECTIVE", 11, 152, 16, palette.Gold, Enum.Font.GothamBlack)
+	self.ObjectiveCaption.Size = UDim2.new(1, -16, 0, 16)
+	self.Objective = hudText("Climb to the next realm", 15, 170, 40, palette.Text, Enum.Font.GothamBlack)
+	self.Objective.TextWrapped = true
+	self.Objective.TextYAlignment = Enum.TextYAlignment.Top
 	self.Danger = text(self.Gui, "", 16, UDim2.new(0.05, 0, 0, 128), UDim2.new(0.9, 0, 0, 32), palette.Red)
 	self.Danger.TextXAlignment = Enum.TextXAlignment.Center
 	self.Danger.TextWrapped = true
+	self.Danger.Font = Enum.Font.GothamBlack
+	self.Danger.TextStrokeTransparency, self.Danger.TextStrokeColor3 = 0.2, Color3.fromRGB(8, 10, 20)
 	self.Danger.BackgroundColor3 = palette.Ink
 	self.EventMeter = make("Frame", {
 		Position = UDim2.new(0.05, 0, 0, 161),
@@ -426,60 +474,6 @@ function UI.new(request, settings)
 		BorderSizePixel = 0,
 		Visible = false,
 	}, self.Gui)
-	self.Health = text(
-		self.Hud,
-		"HP 100 / 100",
-		12,
-		UDim2.new(0.49, 0, 0, 80),
-		UDim2.new(0.49, -12, 0, 20),
-		palette.Blue
-	)
-	self.Distance.Size = UDim2.new(0.49, -20, 0, 20)
-	-- Health bar with shield overlay; the HP label sits on top for readability.
-	self.HealthBar = make("Frame", {
-		Position = UDim2.new(0.49, 0, 0, 78),
-		Size = UDim2.new(0.49, -12, 0, 20),
-		BackgroundColor3 = palette.Ink,
-		BackgroundTransparency = 0.1,
-	}, self.Hud)
-	make("UICorner", { CornerRadius = UDim.new(0, 8) }, self.HealthBar)
-	make("UIStroke", { Color = palette.Muted, Transparency = 0.7 }, self.HealthBar)
-	self.HealthFill = make("Frame", {
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.fromRGB(110, 220, 140),
-		BorderSizePixel = 0,
-	}, self.HealthBar)
-	make("UICorner", { CornerRadius = UDim.new(0, 8) }, self.HealthFill)
-	make("UIGradient", {
-		Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(190, 190, 190)),
-		Rotation = 90,
-	}, self.HealthFill)
-	self.ShieldFill = make("Frame", {
-		Size = UDim2.fromScale(0, 0.4),
-		Position = UDim2.fromScale(0, 0.6),
-		BackgroundColor3 = Color3.fromRGB(130, 220, 255),
-		BorderSizePixel = 0,
-	}, self.HealthBar)
-	make("UICorner", { CornerRadius = UDim.new(0, 6) }, self.ShieldFill)
-	self.Health.Parent = self.HealthBar
-	self.Health.Position, self.Health.Size = UDim2.fromOffset(8, 0), UDim2.new(1, -16, 1, 0)
-	self.Health.TextColor3, self.Health.Font = palette.Text, Enum.Font.GothamBold
-	self.Health.TextStrokeTransparency = 0.5
-	self.Health.ZIndex = 2
-	-- Deletion proximity meter under the distance readout.
-	self.DeletionBar = make("Frame", {
-		Position = UDim2.fromOffset(20, 100),
-		Size = UDim2.new(0.45, -20, 0, 4),
-		BackgroundColor3 = palette.Panel,
-		BorderSizePixel = 0,
-	}, self.Hud)
-	make("UICorner", { CornerRadius = UDim.new(1, 0) }, self.DeletionBar)
-	self.DeletionFill = make("Frame", {
-		Size = UDim2.fromScale(0.2, 1),
-		BackgroundColor3 = Color3.fromRGB(190, 90, 255),
-		BorderSizePixel = 0,
-	}, self.DeletionBar)
-	make("UICorner", { CornerRadius = UDim.new(1, 0) }, self.DeletionFill)
 	-- Realm title card shown when entering a new realm or region.
 	self.Banner = make("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -504,12 +498,12 @@ function UI.new(request, settings)
 		Visible = false,
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -12, 0, 176),
-		Size = UDim2.fromOffset(268, 40),
+		Size = UDim2.fromOffset(250, 40),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = palette.Ink,
-		BackgroundTransparency = 0.18,
+		BackgroundTransparency = 1, -- Floating: no card behind the objective list.
 	}, self.Gui)
-	decorate(self.Tracker)
+	-- No panel; rows use text strokes for readability over the world.
 	make("UIPadding", {
 		PaddingTop = UDim.new(0, 10),
 		PaddingBottom = UDim.new(0, 10),
@@ -519,13 +513,13 @@ function UI.new(request, settings)
 	make("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, self.Tracker)
 	self.TrackerScale = make("UIScale", { Scale = 1 }, self.Tracker)
 	self.TrackerHeader = make("TextButton", {
-		Text = "REALM OBJECTIVES  [-]",
+		Text = "OPTIONAL ACTIVITIES  [-]",
 		Size = UDim2.new(1, 0, 0, 18),
 		BackgroundTransparency = 1,
 		TextColor3 = palette.Gold,
 		Font = Enum.Font.GothamBlack,
 		TextSize = 13,
-		TextXAlignment = Enum.TextXAlignment.Left,
+		TextXAlignment = Enum.TextXAlignment.Right,
 		LayoutOrder = 0,
 	}, self.Tracker)
 	self.TrackerHeader.Activated:Connect(function()
@@ -538,6 +532,8 @@ function UI.new(request, settings)
 	for i = 1, 11 do
 		local row = text(self.Tracker, "", 12, UDim2.new(), UDim2.new(1, 0, 0, 16), palette.Text)
 		row.LayoutOrder, row.TextWrapped = i, true
+		row.TextXAlignment = Enum.TextXAlignment.Right
+		row.TextStrokeTransparency, row.TextStrokeColor3 = 0.35, Color3.fromRGB(8, 10, 20)
 		row.AutomaticSize = Enum.AutomaticSize.Y
 		row.RichText = true
 		self.TrackerRows[i] = row
@@ -702,7 +698,7 @@ function UI.new(request, settings)
 		b:FindFirstChildOfClass("UIStroke").Color = itemColors[kind]
 		b:FindFirstChildOfClass("UIStroke").Transparency = 0.45
 	end
-	self.Pause = button(self.Gui, "☰", UDim2.new(1, -56, 0, 126), UDim2.fromOffset(44, 42), function()
+	self.Pause = button(self.Gui, "☰", UDim2.fromOffset(16, 66), UDim2.fromOffset(44, 42), function()
 		self:open("Settings")
 	end)
 	self.Pause.Visible = false
@@ -734,6 +730,7 @@ function UI.new(request, settings)
 	self.Toast.TextXAlignment = Enum.TextXAlignment.Center
 	self.Toast.TextWrapped = true
 	self.Toast.ZIndex = 3
+	DragonHud.build(self)
 	local function resize()
 		local viewport = workspace.CurrentCamera.ViewportSize
 		self.CompactAdventure = viewport.Y < 500
@@ -765,10 +762,14 @@ function UI.new(request, settings)
 		-- Tracker shrinks and collapses on short or narrow screens; feed sits above the controls.
 		local narrow = viewport.X < 900
 		self.TrackerScale.Scale = if self.CompactAdventure or narrow then 0.82 else 1
-		self.Tracker.Position = UDim2.new(1, -12, 0, if self.CompactAdventure then 60 else 176)
-		self.TrackerCollapsed = if self.TrackerCollapsed == nil
-			then self.CompactAdventure
-			else self.TrackerCollapsed
+		-- Floating HUD under the player list; the optional-activities tracker sits right below it.
+		local hudScale = if self.CompactAdventure then 0.72 elseif narrow then 0.86 else 1
+		self.HudScale.Scale = hudScale
+		local hudTop = if self.CompactAdventure then 8 else math.floor(viewport.Y * 0.3)
+		self.Hud.Position = UDim2.new(1, -18, 0, hudTop)
+		self.Tracker.AnchorPoint = Vector2.new(1, 0)
+		self.Tracker.Position = UDim2.new(1, -18, 0, hudTop + math.floor(222 * hudScale))
+		self.TrackerCollapsed = if self.TrackerCollapsed == nil then true else self.TrackerCollapsed
 		self.Adventure.Size =
 			UDim2.new(if narrow then 0.9 else 0.6, 0, 0, if self.CompactAdventure then 42 else 76)
 		self.Feed.Position = UDim2.new(0, 12, 1, -bottom - 120)
@@ -825,6 +826,12 @@ function UI:animate(dt)
 		self.TitleAccent.Size = UDim2.fromOffset(72 + math.sin(t * 1.2) * 16, 3)
 		local shine = (t * 0.45) % 1.8 - 0.3
 		self.PlayShine.Position = UDim2.fromScale(shine, 0)
+	end
+	-- Critical deletion danger: a subtle pulse on the bar (no flashing text).
+	if self.DangerLevel == "Critical" then
+		self.DeletionFill.BackgroundTransparency = 0.12 + math.sin(t * 6) * 0.12
+	else
+		self.DeletionFill.BackgroundTransparency = 0
 	end
 	if self.Queue.Visible then
 		self.QueueNumberScale.Scale += (1 - self.QueueNumberScale.Scale) * math.min(1, dt * 10)
@@ -897,6 +904,47 @@ function UI:startTransition(data)
 			end
 		end)
 	end)
+end
+-- NPC dialogue: floating speaker and line above the controls, advancing every few seconds.
+function UI:dialogue(payload)
+	if not self.Dialogue then
+		self.Dialogue = make("Frame", {
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -250),
+			Size = UDim2.fromOffset(560, 64),
+			BackgroundTransparency = 1,
+			ZIndex = 5,
+		}, self.Gui)
+		self.DialogueSpeaker = text(self.Dialogue, "", 14, UDim2.new(), UDim2.new(1, 0, 0, 18), palette.Gold)
+		self.DialogueLine =
+			text(self.Dialogue, "", 17, UDim2.fromOffset(0, 20), UDim2.new(1, 0, 0, 44), palette.Text)
+		for _, label in { self.DialogueSpeaker, self.DialogueLine } do
+			label.TextXAlignment, label.Font = Enum.TextXAlignment.Center, Enum.Font.GothamBlack
+			label.TextStrokeTransparency, label.TextStrokeColor3 = 0.25, Color3.fromRGB(8, 10, 20)
+			label.TextWrapped = true
+		end
+	end
+	local token = os.clock()
+	self.DialogueToken = token
+	self.Dialogue.Visible = true
+	self.DialogueSpeaker.Text = string.upper(payload.Speaker or "")
+	local lines = payload.Lines or {}
+	local function show(i)
+		if self.DialogueToken ~= token then
+			return
+		end
+		if i > #lines then
+			self.Dialogue.Visible = false
+			return
+		end
+		self.DialogueLine.Text = "{201C}" .. lines[i] .. "{201D}"
+		self.DialogueLine.TextTransparency = 1
+		TweenService:Create(self.DialogueLine, TweenInfo.new(0.3), { TextTransparency = 0 }):Play()
+		task.delay(3.4, function()
+			show(i + 1)
+		end)
+	end
+	show(1)
 end
 -- Feed entry that slides in and fades after a few seconds (max five visible).
 function UI:feed(message, color)
@@ -1024,6 +1072,76 @@ function UI:event(action, payload)
 				self.Achievement.Visible = false
 			end
 		end)
+	elseif action == "Dragon" then
+		local kind = payload.Kind
+		if kind == "Encounter" then
+			self:banner(
+				"THE REALM DESTROYER",
+				"Fight with Dragonbane weapons, or reach the Sky Balloon",
+				"Shoot glowing weak points. Leave glowing ground. Jump shockwaves. The realm falls in "
+					.. math.floor((payload.RazeIn or 150) / 60)
+					.. " minutes."
+			)
+			self:flash(Color3.fromRGB(255, 90, 50), 0.3)
+		elseif kind == "Repelled" then
+			self:banner("REALM DESTROYER REPELLED", "It flees, wounded. It will return.", "")
+		elseif kind == "Escaped" then
+			self:feed("You escaped the Realm Destroyer: no boss rewards this time", palette.Muted)
+		elseif kind == "Raze" then
+			self:flash(Color3.fromRGB(255, 80, 40), 0.35)
+		elseif kind == "Crossbow" then
+			self:feed(
+				"DRAGONBANE CROSSBOW  ·  " .. (payload.Bolts or 0) .. " bolts  ·  G / R1 / FIRE",
+				palette.Gold
+			)
+		elseif kind == "Roar" and payload.Distant and not self.HeardRoar then
+			self.HeardRoar = true
+			self:feed("A distant roar shakes the sky. Something vast circles the realms…", palette.Red)
+		elseif kind == "Interrupted" then
+			self:feed("Crystal blast! Its heart is exposed!", palette.Blue)
+		end
+	elseif action == "DragonTrophy" then
+		self:feed(
+			string.format(
+				"DRAGON TROPHIES  +%d scales%s  ·  total %d scales, %d shards",
+				payload.Scales or 0,
+				if (payload.Emberhearts or 0) > 0
+					then ", +" .. payload.Emberhearts .. " Emberheart Shard"
+					else "",
+				payload.TotalScales or 0,
+				payload.TotalEmberhearts or 0
+			),
+			Color3.fromRGB(255, 150, 90)
+		)
+		if payload.Cosmetic then
+			self.AchievementTitle.Text = "RARE DROP  ·  " .. payload.Cosmetic
+			self.AchievementText.Text = "Equip it in the Sky boutique"
+			self.Achievement.Visible = true
+			local token = os.clock()
+			self.AchievementToken = token
+			task.delay(5, function()
+				if self.AchievementToken == token then
+					self.Achievement.Visible = false
+				end
+			end)
+		end
+	elseif action == "Shop" then
+		if payload.Kind == "Bought" then
+			self:feed("PURCHASED  " .. (payload.Name or ""), palette.Gold)
+		elseif payload.Kind == "Equipped" then
+			self:notice((payload.Name or "Cosmetic") .. " equipped")
+		end
+	elseif action == "Bestiary" then
+		self:feed(
+			string.format(
+				"BESTIARY  %s  %d/%d  ·  %s",
+				payload.Name or "",
+				payload.Stage or 0,
+				payload.Of or 4,
+				payload.Text or ""
+			),
+			palette.Blue
+		)
 	elseif action == "Hurt" then
 		self:flash(Color3.fromRGB(255, 60, 70), math.clamp((payload.Amount or 5) / 40, 0.1, 0.35))
 	elseif action == "Collected" then
@@ -1054,6 +1172,7 @@ local typeIcons = {
 	Artifacts = "FIND",
 	Gate = "VAULT",
 	Survey = "MAP",
+	Flock = "SAVE",
 }
 -- Objective tracker rows: realm, main objective, activities (nearest first), event, perks.
 function UI:objectives(data)
@@ -1075,9 +1194,8 @@ function UI:objectives(data)
 	table.insert(
 		rows,
 		string.format(
-			'<font color="%s"><b>%s</b></font>  ·  %ds until collapse',
+			'<font color="%s"><b>REGION COLLAPSES IN %ds</b></font>',
 			hex(accent),
-			string.upper(info.Region or ""),
 			info.TimeLeft or 0
 		)
 	)
@@ -1090,10 +1208,6 @@ function UI:objectives(data)
 		end
 		table.insert(rows, string.format("%d optional activities open · tap to expand", open))
 	else
-		table.insert(
-			rows,
-			'<font color="#FFD58D">MAIN</font>  Climb onward: causeway · elevator · cave seal'
-		)
 		local list = table.clone(info.Activities)
 		table.sort(list, function(a, b)
 			if a.Done ~= b.Done then
@@ -1148,8 +1262,8 @@ function UI:objectives(data)
 		row.Visible = rows[i] ~= nil
 	end
 	self.TrackerHeader.Text = if self.TrackerCollapsed
-		then "REALM OBJECTIVES  [+]"
-		else "REALM OBJECTIVES  [-]"
+		then "OPTIONAL ACTIVITIES  [+]"
+		else "OPTIONAL ACTIVITIES  [-]"
 end
 function UI:open(page)
 	self.Page = page
@@ -1171,6 +1285,7 @@ function UI:open(page)
 		Help = "Your ascent",
 		Settings = "Settings",
 		Shop = "Sky boutique",
+		Bestiary = "Bestiary",
 		Leaderboard = "Highest ascenders",
 		Elimination = "The ascent ends",
 	})[page] or page
@@ -1201,8 +1316,13 @@ function UI:open(page)
 			110
 		)
 		paragraph(
-			"Collect the labeled Sun, Leaf and Moon keys in each cave. At the SEAL ALTAR, E / X places the next collected key, or use 1 / 2 / 3 and the key buttons. Order: Sun > Leaf > Moon. Keys stay in your pouch; wrong order resets the seal. Everyone can use the opened gate. Alternatively contribute 4 crystals. Repair the shortcut with 6 timber or ride the elevator.",
-			150
+			"Collect the labeled Sun, Leaf and Moon keys in each cave. At the SEAL ALTAR, E / X places the next collected key, or use 1 / 2 / 3 and the key buttons. Order: Sun > Leaf > Moon. Keys stay in your pouch; wrong order resets the seal. Everyone can use the opened gate. Alternatively contribute 4 crystals. Repair the shortcut with 6 timber or board the Sky Balloon (E / X at its dock; it departs 5 seconds after the first rider boards, and friends can join).",
+			170
+		)
+		paragraph(
+			"THE REALM DESTROYER: a giant red dragon circles the realms. From the Floating Jungle it attacks. Fight it or escape: forge a Dragonbane Crossbow (2 timber + 1 crystal; G / R1 / FIRE), take heavy Dragonbane Harpoons from the rack beside the forge (3 timber + 1 crystal; T / L2 / THROW; a hit on a glowing weak point pins it open longer), repair the ballista with timber, and load the crystal cannon with crystals. Shoot the GLOWING weak point during its attacks. Leave glowing ground before it strikes; jump its shockwaves; hide behind walls from its wing gust. Or board the Sky Balloon before the realm burns.",
+			190,
+			palette.Red
 		)
 		paragraph(
 			"Every realm offers optional activities (top right): repairs, rescues, creature lairs, puzzles, caches, air courses and vaults. They pay coins, XP, relics and run perks, but the ground keeps deleting: decide when to leave. Watch for live events: supply drops, rare relics, roaming guardians and lost travelers.",
@@ -1244,42 +1364,9 @@ function UI:open(page)
 			self:open("Menu")
 		end)
 	elseif page == "Shop" then
-		local profile = self.Data and self.Data.Profile
-		paragraph(
-			string.format("%d coins • Cosmetics only", profile and profile.Coins or 0),
-			28,
-			palette.Gold
-		)
-		for _, item in Shop do
-			local owned = profile and profile.Owned[item.Id]
-			local locked = item.Unlock and not owned
-			local achieved = item.Unlock
-				and profile
-				and profile.Achievements
-				and profile.Achievements[item.Unlock]
-			row(
-				item.Name
-					.. "  •  "
-					.. (
-						if owned
-							then "Equip"
-							elseif locked and achieved then "Unlocked: claim"
-							elseif locked then "Locked: " .. Objectives.Achievements[item.Unlock].Name
-							else tostring(item.Price) .. " coins"
-					),
-				function()
-					self.Request:FireServer("Purchase", item.Id)
-					task.delay(0.5, function()
-						if self.Page == "Shop" then
-							self:open("Shop")
-						end
-					end)
-				end
-			)
-		end
-		row("Perform Sky Salute", function()
-			self.Request:FireServer("Emote")
-		end)
+		ShopView.render(self)
+	elseif page == "Bestiary" then
+		DragonHud.page(self, paragraph)
 	elseif page == "Leaderboard" then
 		paragraph("THIS SERVER", 22, palette.Blue)
 		local roster = table.clone(self.Data and self.Data.Roster or {})
@@ -1330,6 +1417,17 @@ function UI:open(page)
 		end
 	end
 end
+-- Re-renders the open shop in place (keeps the scroll position, no panel animation).
+function UI:refreshShop()
+	if self.Page ~= "Shop" or not self.Panel.Visible then
+		return
+	end
+	local scroll = self.Body.CanvasPosition
+	self.Body:ClearAllChildren()
+	make("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder }, self.Body)
+	ShopView.render(self)
+	self.Body.CanvasPosition = scroll
+end
 -- Cooldown sweep: the dark overlay drains from full to empty as the cooldown ends.
 function UI:sweep(name, remaining)
 	local shade = self.CooldownShades and self.CooldownShades[name]
@@ -1372,7 +1470,7 @@ function UI:updateStorm(data, weather)
 		and data.Distance >= Config.WaveWarningDistance
 	then
 		self.Danger.Text = "STORM PASSING · THE SKY IS CLEARING"
-		self.Danger.BackgroundTransparency = 0.15
+		self.Danger.BackgroundTransparency = 1
 	end
 end
 function UI:update(data)
@@ -1416,23 +1514,17 @@ function UI:update(data)
 			else "Ready · Studio session, progress is not saved")
 	self.StatusDot.BackgroundColor3 = if data.Ready then Color3.fromRGB(120, 230, 140) else palette.Gold
 	self.Play.AutoButtonColor = data.Ready and data.State == "Lobby"
-	self.Altitude.Text = string.format("%dm", data.Altitude)
-	self.Best.Text = string.format(
-		"BEST %dm • VERIFIED %dm",
-		data.Profile and data.Profile.Best or 0,
-		data.Verified or data.Altitude
-	)
-	self.Biome.Text = (data.BiomeName or data.Biome or "Realm")
-		.. (if data.RegionName then "\n" .. data.RegionName else "")
+	self.Altitude.Text = string.format("%dm ALTITUDE", data.Altitude)
+	self.Biome.Text = string.upper(data.RegionName or "Realm")
+		.. "  ·  "
+		.. (data.BiomeName or data.Biome or "")
 	if self.LastBiome ~= data.Biome then
 		self.LastBiome = data.Biome
 		for _, biome in Biomes.List do
 			if biome.Id == data.Biome then
 				local accent = Color3.fromRGB(biome.Accent[1], biome.Accent[2], biome.Accent[3])
 				self.ThemeColor = accent
-				self.Hud:FindFirstChildOfClass("UIStroke").Color = accent
-				self.Hud:FindFirstChildOfClass("UIGradient").Color =
-					ColorSequence.new(palette.Ink:Lerp(accent, 0.18), palette.Ink)
+				self.ObjectiveIcon.BackgroundColor3 = accent
 				self.Panel:FindFirstChildOfClass("UIStroke").Color = accent
 				self.Biome.TextColor3, self.Adventure.TextColor3 = accent, accent
 				self.EventMeter.BackgroundColor3 = accent
@@ -1441,42 +1533,69 @@ function UI:update(data)
 	end
 	local powers = data.PowerStatus or { Shield = 0, Glide = 0, Overcharge = 0 }
 	self.Health.Text = string.format(
-		"HP %d/%d%s",
+		"%d/%d%s",
 		math.ceil(data.Health or 100),
 		data.MaxHealth or 100,
-		if powers.Shield > 0 then " · AEGIS " .. math.ceil(powers.Shield) else ""
+		if powers.Shield > 0 then "  +" .. math.ceil(powers.Shield) .. " AEGIS" else ""
 	)
+	-- Health: bright green when healthy, orange at moderate, strong red at critical.
 	local ratio = math.clamp((data.Health or 100) / math.max(1, data.MaxHealth or 100), 0, 1)
-	self.HealthFill.Size = UDim2.fromScale(ratio, 1)
-	self.HealthFill.BackgroundColor3 =
-		Color3.fromRGB(255, 90, 110)
-			:Lerp(Color3.fromRGB(110, 220, 140), math.clamp((ratio - 0.2) / 0.6, 0, 1))
-	self.ShieldFill.Size = UDim2.fromScale(math.clamp(powers.Shield / 90, 0, 1), 0.4)
+	local healthColor = if ratio > 0.6
+		then Color3.fromRGB(70, 232, 96)
+		elseif ratio > 0.3 then Color3.fromRGB(255, 168, 36)
+		else Color3.fromRGB(255, 52, 60)
+	TweenService:Create(self.HealthFill, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+		Size = UDim2.fromScale(ratio, 1),
+		BackgroundColor3 = healthColor,
+	}):Play()
+	self.ShieldFill.Size = UDim2.fromScale(math.clamp(powers.Shield / 90, 0, 1), 0.35)
 	if self.LastHealth and (data.Health or 0) > self.LastHealth + 5 and data.State == "Alive" then
 		self:flash(Color3.fromRGB(120, 240, 140), 0.18)
 	end
 	self.LastHealth = data.Health
-	self.Health.TextColor3 = if (data.Health or 100) < 35 then palette.Red else palette.Blue
-	self.Health.TextColor3 = palette.Text
-	self.Time.Text = string.format(
-		"%d:%02d • %d coins",
-		math.floor(data.Survival / 60),
-		data.Survival % 60,
-		data.Profile and data.Profile.Coins or 0
-	)
-	self.Distance.Text = string.format("DELETION %dm BELOW", math.max(0, math.floor(data.Distance)))
-	self.DeletionFill.Size = UDim2.fromScale(math.clamp(1 - data.Distance / 220, 0.03, 1), 1)
-	self.DeletionFill.BackgroundColor3 = if data.Distance < Config.WaveWarningDistance
-		then palette.Red
-		else Color3.fromRGB(190, 90, 255)
-	self.Distance.TextColor3 = if data.Distance < Config.WaveWarningDistance
-		then palette.Red
-		else palette.Muted
+	self.Health.TextColor3 = if ratio <= 0.3 then palette.Red else palette.Text
+	-- Deletion danger from the real wave distance: SAFE (cyan), WARNING (orange), CRITICAL (red).
+	local distance = math.max(0, math.floor(data.Distance))
+	local critical, warning = Config.WaveWarningDistance, Config.WaveWarningDistance * 2
+	self.DangerLevel = if distance < critical
+		then "Critical"
+		elseif distance < warning then "Warning"
+		else "Safe"
+	self.Distance.Text = string.format("%dm BELOW", distance)
+	local dangerColor = if self.DangerLevel == "Critical"
+		then Color3.fromRGB(255, 46, 56)
+		elseif self.DangerLevel == "Warning" then Color3.fromRGB(255, 140, 30)
+		else Color3.fromRGB(60, 220, 255)
+	TweenService:Create(self.DeletionFill, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+		Size = UDim2.fromScale(math.clamp(1 - data.Distance / (critical * 4), 0.03, 1), 1),
+		BackgroundColor3 = dangerColor,
+	}):Play()
+	self.Distance.TextColor3 = if self.DangerLevel == "Safe" then palette.Text else dangerColor
 	self.Danger.Text = if data.State == "Alive" and data.Distance < Config.WaveWarningDistance
 		then "THE VOID IS CLOSE — KEEP CLIMBING"
 		else ""
-	local bag = data.Bag or { Timber = 0, Crystal = 0, Herb = 0 }
 	local seal = data.Seal or {}
+	-- Current primary objective (optional activities stay in the collapsible tracker).
+	local objective = "Climb to the next realm: sky causeway, Sky Balloon or cave seal"
+	local info = data.Objectives
+	if data.Balloon then
+		objective = "Ride the Sky Balloon to the next realm"
+	elseif data.Dragon and data.Dragon.Encounter then
+		objective = "Repel the Realm Destroyer, or escape on the Sky Balloon"
+	elseif info and info.Carrying then
+		objective = "Carry the artifact to its pedestal"
+	elseif seal.Nearby and not seal.Open then
+		objective = "Place the seal keys in order: Sun, Leaf, Moon"
+	elseif data.PortalOpen then
+		objective = "The cave gate is open: escape upward"
+	elseif self.DangerLevel ~= "Safe" then
+		objective = "Escape upward before the deletion reaches you"
+	end
+	if objective ~= self.Objective.Text then
+		self.Objective.Text = objective
+		self.Objective.TextTransparency = 1
+		TweenService:Create(self.Objective, TweenInfo.new(0.4), { TextTransparency = 0 }):Play()
+	end
 	local keysLine = string.format(
 		"KEYS Sun [%s] Leaf [%s] Moon [%s] | Seal %d/3",
 		if seal.Sun then "+" else "-",
@@ -1484,26 +1603,14 @@ function UI:update(data)
 		if seal.Moon then "+" else "-",
 		seal.Progress or 0
 	)
-	local statusLine = string.format(
-		"%s | Stability %ds | %s | Gate %s",
-		data.Event or "Calm",
-		data.Stability or 0,
-		if data.Transit then "IN TRANSIT" elseif data.Sheltered then "SHELTERED" else "EXPOSED",
-		if data.PortalOpen then "OPEN" else "SEALED"
-	)
-	self.Adventure.Visible = data.State == "Alive"
-	self.Adventure.Text = keysLine .. "\n" .. statusLine
-	if not self.CompactAdventure then
-		self.Adventure.Text = keysLine
-			.. string.format(
-				"\nTimber %d | Crystal %d | Herb %d | Bridge %d/6\n",
-				bag.Timber,
-				bag.Crystal,
-				bag.Herb,
-				data.Repair or 0
-			)
-			.. statusLine
-	end
+	-- Only shown when it matters: keys owned, the altar nearby, or a shared repair under way.
+	local relevant = seal.Sun or seal.Leaf or seal.Moon or seal.Nearby or (data.Repair or 0) > 0
+	self.Adventure.Visible = data.State == "Alive" and relevant == true
+	self.Adventure.Text = keysLine
+		.. (
+			if (data.Repair or 0) > 0 then string.format("\nShortcut repair %d/6 timber", data.Repair) else ""
+		)
+	local bag = data.Bag or { Timber = 0, Crystal = 0, Herb = 0 }
 	local usingSeal = seal.Nearby and not seal.Open
 	for glyph, b in self.GlyphButtons do
 		b.Visible = usingSeal == true
@@ -1540,10 +1647,7 @@ function UI:update(data)
 	end
 	self.EventMeter.Visible = data.State == "Alive" and data.EventPhase == "Warning"
 	self.EventMeter.Size = UDim2.new(0.9 * math.clamp((data.EventRemaining or 8) / 8, 0, 1), 0, 0, 3)
-	self.Danger.BackgroundTransparency = if data.State == "Alive"
-			and (data.EventPhase == "Warning" or data.EventPhase == "Active")
-		then 0.15
-		else 1
+	self.Danger.BackgroundTransparency = 1
 	for kind, b in self.ItemButtons do
 		b.Visible = not usingSeal
 		local item = Items[kind]
@@ -1587,6 +1691,27 @@ function UI:update(data)
 		self:banner(string.upper(data.RegionName), data.BiomeName, realm.Lore)
 	elseif data.State ~= "Alive" then
 		self.LastRegionName = nil
+	end
+	DragonHud.update(self, data)
+	-- Live shop: re-render when coins, ownership or the equipped item change.
+	local profile = data.Profile
+	if profile then
+		local owned = 0
+		for _ in profile.Owned or {} do
+			owned += 1
+		end
+		local signature = string.format(
+			"%d|%s|%d|%d|%d",
+			profile.Coins or 0,
+			tostring(profile.Equipped),
+			owned,
+			profile.DragonScales or 0,
+			profile.Emberhearts or 0
+		)
+		if signature ~= self.ShopSignature then
+			self.ShopSignature = signature
+			self:refreshShop()
+		end
 	end
 	self:objectives(data)
 end

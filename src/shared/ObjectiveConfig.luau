@@ -1,7 +1,7 @@
 --!nonstrict
 -- Shared objective metadata: activity hints, rewards, run perks and achievements.
 local Objectives = {}
-Objectives.Main = "Climb onward: walk the sky causeway, ride the elevator, or open the cave seal."
+Objectives.Main = "Climb onward: walk the sky causeway, board the Sky Balloon, or open the cave seal."
 Objectives.Hints = {
 	Repair = "Bring supplies to the broken machine. Anyone can contribute.",
 	Rescue = "Find the stranded survivor, then lead them to the rescue beacon at the causeway.",
@@ -15,6 +15,7 @@ Objectives.Hints = {
 	Artifacts = "Carry each artifact to the pedestal. Dropped artifacts return home.",
 	Gate = "Pull the lever, then reach the vault before the door slams shut.",
 	Survey = "Cross the rope bridges and chart the cairn on every frontier sub-area.",
+	Flock = "Talk to the Lost Shepherd, find his three sheep and escort the flock to the rescue beacon. Keep creatures away: a hit scatters a sheep.",
 }
 -- Coins/XP granted to each participant on completion; Major activities pay more.
 Objectives.Rewards = {
@@ -30,6 +31,7 @@ Objectives.Rewards = {
 	Artifacts = { Coins = 24, XP = 50, Relic = 1 },
 	Gate = { Coins = 20, XP = 40, Relic = 1 },
 	Survey = { Coins = 20, XP = 50, Relic = 1, Perk = true },
+	Flock = { Coins = 40, XP = 80, Perk = true },
 }
 Objectives.Perks = {
 	Gale = { Name = "Gale Anklet", Text = "Gust Dash cooldown -25%" },
@@ -62,6 +64,7 @@ Objectives.Achievements = {
 		Text = "Finish every activity in one region",
 		Secret = true,
 	},
+	Dragonbane = { Name = "Dragonbane", Text = "Repel the Realm Destroyer" },
 }
 Objectives.EventText = {
 	SupplyDrop = "A supply crate is falling from the sky!",

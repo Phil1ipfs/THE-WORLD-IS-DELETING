@@ -27,7 +27,7 @@ local Realms = {
 				Title = "Repair the Ancient Windmill",
 				Cost = { Timber = 6 },
 			},
-			{ Type = "Rescue", Id = "Shepherd", Title = "Guide the Lost Shepherd to the beacon" },
+			{ Type = "Flock", Id = "Shepherd", Title = "Help the Lost Shepherd find his flock" },
 			{ Type = "Hunt", Id = "Brambles", Title = "Drive off the Bramble Stalkers", Count = 2 },
 			{ Type = "Plates", Id = "StoneCircle", Title = "Wake the old stone circle" },
 			{

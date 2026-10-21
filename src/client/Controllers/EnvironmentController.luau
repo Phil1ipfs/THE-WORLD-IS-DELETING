@@ -618,7 +618,8 @@ end
 function Environment:spin(dt)
 	for _, group in self.Spinners do
 		local hub = group.Hub
-		if hub.Parent and hub.Transparency == 0 then
+		-- With streaming, members can arrive before their hub.
+		if hub and hub.Parent and hub.Transparency == 0 then
 			local speed = hub:GetAttribute("Spin")
 			if speed then
 				if
@@ -741,7 +742,13 @@ function Environment:update(dt, data)
 			self.Spinners[key] = nil
 		end
 	end
-	local islands = world:GetChildren()
+	-- Only region Models (the world root also holds folders such as BalloonFlights).
+	local islands = {}
+	for _, child in world:GetChildren() do
+		if child:IsA("Model") then
+			table.insert(islands, child)
+		end
+	end
 	local sanctuary = workspace:FindFirstChild("SkySanctuary")
 	if sanctuary then
 		table.insert(islands, sanctuary)

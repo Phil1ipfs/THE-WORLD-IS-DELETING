@@ -51,6 +51,32 @@ function Input.start(request, ui)
 			return Enum.ContextActionResult.Pass
 		end, false, table.unpack(keys))
 	end
+	-- Dragonbane Crossbow: G / controller R1 (touch uses the FIRE button).
+	ContextActionService:BindAction("RealmFire", function(_, state)
+		if
+			state == Enum.UserInputState.Begin
+			and ui.State == "Alive"
+			and not ui.Panel.Visible
+			and ui.OnFire
+		then
+			ui.OnFire()
+			return Enum.ContextActionResult.Sink
+		end
+		return Enum.ContextActionResult.Pass
+	end, false, Enum.KeyCode.G, Enum.KeyCode.ButtonR1)
+	-- Dragonbane Harpoon: T / controller L2 (touch uses the THROW button).
+	ContextActionService:BindAction("RealmThrow", function(_, state)
+		if
+			state == Enum.UserInputState.Begin
+			and ui.State == "Alive"
+			and not ui.Panel.Visible
+			and ui.OnThrow
+		then
+			ui.OnThrow()
+			return Enum.ContextActionResult.Sink
+		end
+		return Enum.ContextActionResult.Pass
+	end, false, Enum.KeyCode.T, Enum.KeyCode.ButtonL2)
 	ContextActionService:BindAction("RealmMenu", function(_, state)
 		if state == Enum.UserInputState.Begin then
 			ui:open(if ui.Panel.Visible then "Menu" else "Settings")

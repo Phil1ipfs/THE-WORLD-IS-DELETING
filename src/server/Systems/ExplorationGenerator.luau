@@ -12,6 +12,7 @@ local Props = require(Services.Props)
 local Sites = require(Services.Sites)
 local Architecture = require(Services.Architecture)
 local Bridge = require(Services.SuspensionBridge)
+local BalloonModel = require(Services.BalloonModel)
 local Generator = {}
 local timber = Color3.fromRGB(109, 78, 53)
 local styleFor = {
@@ -647,61 +648,21 @@ function Generator.build(parent, index, origin, seed)
 			swirl.Size = NumberSequence.new(0.3)
 			swirl.Parent = veil
 			G.glow(model, anchor.Position + Vector3.new(0, 3, 0), Color3.fromRGB(178, 132, 255), 1)
-		elseif kind == "Lift" then
+		elseif kind == "Balloon" then
+			-- Sky Balloon station: a static mooring dock plus a docked balloon that the SkyBalloon
+			-- system flies to the next region. Navy & cream by default, red & cream on odd regions.
 			anchor.Transparency = 1
-			for _, sx in { -5, 5 } do
-				for _, sz in { -5, 5 } do
-					fixture(
-						"LiftPost",
-						Vector3.new(0.8, 14, 0.8),
-						anchor.Position + Vector3.new(sx, 5, sz),
-						timber,
-						Enum.Material.Wood,
-						false
-					)
-				end
-			end
-			fixture(
-				"LiftBeam",
-				Vector3.new(11, 0.8, 0.8),
-				anchor.Position + Vector3.new(0, 12, -5),
-				timber,
-				Enum.Material.Wood,
-				false
-			)
-			fixture(
-				"LiftBeam",
-				Vector3.new(11, 0.8, 0.8),
-				anchor.Position + Vector3.new(0, 12, 5),
-				timber,
-				Enum.Material.Wood,
-				false
-			)
-			local rope = fixture(
-				"LiftRope",
-				Vector3.new(0.25, 60, 0.25),
-				anchor.Position + Vector3.new(0, 42, 0),
-				Color3.fromRGB(176, 150, 100),
-				Enum.Material.Fabric,
-				false
-			)
-			rope.CastShadow = false
-			local wheel = fixture(
-				"LiftWheel",
-				Vector3.new(0.8, 4, 4),
-				anchor.Position + Vector3.new(0, 12.6, 0),
-				Color3.fromRGB(150, 120, 70),
-				Enum.Material.Metal,
-				false
-			)
-			wheel.Shape = Enum.PartType.Cylinder
-			wheel:SetAttribute("Spin", 0.6)
-			G.label(
-				anchor,
-				"SKY ELEVATOR\nRide to the next realm",
-				anchor.Position + Vector3.new(0, 6, 0),
-				gold
-			)
+			local mooring = CFrame.new(at(x, S:height(x, z), z)) * CFrame.Angles(0, math.rad(35), 0)
+			BalloonModel.dock(function(name, size, cf, color, material)
+				local piece = fixture(name, size, cf.Position, color, material, false)
+				piece.CFrame = cf
+				return piece
+			end, mooring, gold)
+			r.Balloon = {
+				Local = CFrame.new(center):ToObjectSpace(mooring),
+				Variant = if index % 2 == 1 then "Crimson" else "Navy",
+				Built = BalloonModel.build(model, mooring, if index % 2 == 1 then "Crimson" else "Navy"),
+			}
 		elseif kind == "Heal" then
 			anchor.Size, anchor.Material, anchor.Color = Vector3.new(3.4, 1.2, 3.4), Enum.Material.Slate, rock
 			anchor.Shape = Enum.PartType.Cylinder
@@ -832,7 +793,7 @@ function Generator.build(parent, index, origin, seed)
 	prompt("Seal", -132, -45, "Place next seal key")
 	prompt("Portal", -120, -38, "Escape through seal")
 	prompt("Repair", -92, -48, "Contribute 2 timber")
-	prompt("Lift", -36, 18, "Ride sky elevator")
+	prompt("Balloon", -36, 18, "Board the Sky Balloon")
 	prompt("Heal", 0, -58, "Use healing herb")
 	prompt("Discover", 132, 24, "Search forgotten shrine")
 	B.Ground = r.Landing
@@ -928,7 +889,7 @@ function Generator.build(parent, index, origin, seed)
 		at(0, 10, 12),
 		gold
 	)
-	G.label(model, "SKY CAUSEWAY\nWalk upward · Lift west · Gate in cave", at(-12, 7, 0), gold)
+	G.label(model, "SKY CAUSEWAY\nWalk upward · Balloon west · Gate in cave", at(-12, 7, 0), gold)
 	-- Rescue beacon: signal fire where escorted survivors reach safety.
 	B.Ground = r.Landing
 	local beaconBase = r.Beacon
@@ -945,6 +906,8 @@ function Generator.build(parent, index, origin, seed)
 	Scenery.prepare(r, biome, seed)
 	-- Realm activities claim their sites before scenery fills the remaining land.
 	require(script.Parent.Activities.Builder).build(r)
+	-- Dragonbane forge (and, in encounter regions, ballista and crystal cannon).
+	require(Services.DragonArmory).build(r, prompt)
 	-- Timber caches scatter through the remaining woodland once activities have claimed space.
 	local timberSpots = {}
 	for i = 1, 18 do

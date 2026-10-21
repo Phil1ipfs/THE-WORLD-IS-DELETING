@@ -19,7 +19,11 @@ function Hunt.build(ctx, act)
 	end
 	act.Site = site
 	act.Creatures = {}
-	local kind = ctx.Design.Creature
+	local Bestiary = require(script.Parent.Bestiary)
+	local roster = Bestiary.Realms[ctx.Region.Biome.Id] or {}
+	local kind = act.Def.Creature
+		or (if act.Def.Elite then roster.Elite else roster.Common)
+		or ctx.Design.Creature
 	local count = act.Def.Count or 2
 	for k = 1, count do
 		local a = k / count * math.pi * 2
@@ -84,6 +88,7 @@ function Hunt.update(svc, act, dt, now)
 				end
 				svc:announce(act, c.Def.Name .. " defeated!")
 				svc:achieve(c.Hitters, "Hunter")
+				svc:catalog(c.Hitters, c.Kind)
 			elseif result ~= "Fell" then
 				alive += 1
 			end

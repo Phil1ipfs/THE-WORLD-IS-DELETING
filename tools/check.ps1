@@ -26,6 +26,8 @@ try {
     Invoke-Check '.tools/lune/lune.exe' @('run', 'tools/items-powers.spec.luau')
     Invoke-Check '.tools/lune/lune.exe' @('run', 'tools/seal.spec.luau')
     Invoke-Check '.tools/lune/lune.exe' @('run', 'tools/client.spec.luau')
+    Invoke-Check '.tools/lune/lune.exe' @('run', 'tools/dragon.spec.luau')
+    Invoke-Check '.tools/lune/lune.exe' @('run', 'tools/dragon-client.spec.luau')
     Invoke-Check '.tools/lune/lune.exe' @('run', 'tools/storm.spec.luau')
     Invoke-Check '.tools/lune/lune.exe' @('run', 'tools/disasters.spec.luau')
     Invoke-Check '.tools/lune/lune.exe' @('run', 'tools/gameplay.spec.luau')

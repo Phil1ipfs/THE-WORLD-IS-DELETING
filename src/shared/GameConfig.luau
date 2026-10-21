@@ -1,6 +1,6 @@
 --!strict
 return table.freeze({
-	Version = "0.5.0",
+	Version = "0.7.2",
 	LobbyX = 2400, -- Sanctuary vista sits far from realm airspace (realms span about ±1100).
 	RegionRise = 128,
 	RegionRadius = 450,
